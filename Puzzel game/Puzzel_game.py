@@ -147,7 +147,7 @@ def update_bar():
     update_light_radius()
 
     # Repeat the update every 50 milliseconds
-    root.after(50, update_bar)
+    root.after(1000, update_bar)
 
 # A* pathfinding algorithm to find the shortest path from start to goal, avoiding walls
 def a_star(start, goal):
