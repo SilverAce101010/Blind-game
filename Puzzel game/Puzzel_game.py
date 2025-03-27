@@ -78,8 +78,20 @@ generate_maze()
 # Precalculate wall positions
 wall_tiles = {(x, y) for y in range(MAZE_ROWS) for x in range(MAZE_COLS) if maze[y][x] == 1}
 
-# Define the lighting radius
-LIGHT_RADIUS = 125
+# Variable for the minimum and maximum light radius
+MIN_LIGHT_RADIUS = 100
+MAX_LIGHT_RADIUS = 125
+
+def update_light_radius():
+    """Update the light radius based on the current width of the sanity bar."""
+    global LIGHT_RADIUS
+    
+    # Calculate the percentage of the bar width remaining (between 0 and 1)
+    bar_percentage = bar_width / 200  # bar_width starts at 200 and decreases to 0
+    
+    # Map the bar width percentage to the light radius range (from 100 to 125)
+    LIGHT_RADIUS = MIN_LIGHT_RADIUS + (MAX_LIGHT_RADIUS - MIN_LIGHT_RADIUS) * bar_percentage
+
 
 def calculate_shading(x, y, is_wall, target_x=None, target_y=None):
     """ Lighting effect based on player distance, applies to walls and ground differently. """
@@ -95,13 +107,20 @@ def calculate_shading(x, y, is_wall, target_x=None, target_y=None):
         distance = math.sqrt((target_x - (x * GRID_SIZE))**2 + (target_y - (y * GRID_SIZE))**2)
         shade_factor = min(1, distance / LIGHT_RADIUS)
         
+        # If the distance exceeds the LIGHT_RADIUS, the tile is completely black (no light)
         if distance > LIGHT_RADIUS:
             return "#000000"  # Completely black if outside the light radius
         
+        # Reduce the brightness of the light based on the remaining radius
+        brightness_factor = 1 - (shade_factor * 0.5)  # Dimming the brightness as the distance increases
+        
+        # Calculate the new color based on the brightness_factor
         if is_wall:
-            color_value = max(30, 100 - int(100 * shade_factor))  # Walls stay darker
+            color_value = max(30, int(100 * shade_factor * brightness_factor))  # Walls stay darker but dim as the light radius decreases
         else:
-            color_value = max(0, 255 - int(255 * shade_factor))  # Floors get full range of light
+            color_value = max(0, int(255 * shade_factor * brightness_factor))  # Floors get dimmer as the light radius shrinks
+        
+        # Return the color in hex format
         return f"#{color_value:02x}{color_value:02x}{color_value:02x}"
     
     return "#000000"  # Return black if out of bounds (this case should be rare)
@@ -123,6 +142,7 @@ bar_width = 200
 # Variable for the speed at which the bar reduces (in pixels per update)
 bar_decrease_speed = 0.1  # You can change this to a larger number for faster decrease
 
+# Call this function inside the `update_bar` function to update the light radius as the bar decreases.
 def update_bar():
     global bar_width
     if bar_width > 0:
@@ -130,9 +150,11 @@ def update_bar():
         bar_canvas.delete("all")
         bar_canvas.create_rectangle(0, 0, bar_width, 20, fill="#9668b5")
     
+    # Update the light radius based on the current bar width
+    update_light_radius()
+
     # Repeat the update every 50 milliseconds
     root.after(50, update_bar)
-
 
 # A* pathfinding algorithm to find the shortest path from start to goal, avoiding walls
 def a_star(start, goal):
