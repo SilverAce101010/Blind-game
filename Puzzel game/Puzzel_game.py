@@ -38,7 +38,7 @@ def display_text(text):
     text_display.insert(tk.END, text + '\n')  # Adds new text at the end with a newline
     text_display.yview_moveto(1.0)  # Scrolls to the bottom to show the latest text
 
-display_text("Testing")
+display_text("You: Where am I...")
 
 # Player settings
 player_size = int(GRID_SIZE // 1.5)
@@ -147,7 +147,7 @@ def update_bar():
     update_light_radius()
 
     # Repeat the update every 50 milliseconds
-    root.after(1000, update_bar)
+    root.after(100, update_bar)
 
 # A* pathfinding algorithm to find the shortest path from start to goal, avoiding walls
 def a_star(start, goal):
