@@ -107,20 +107,13 @@ def calculate_shading(x, y, is_wall, target_x=None, target_y=None):
         distance = math.sqrt((target_x - (x * GRID_SIZE))**2 + (target_y - (y * GRID_SIZE))**2)
         shade_factor = min(1, distance / LIGHT_RADIUS)
         
-        # If the distance exceeds the LIGHT_RADIUS, the tile is completely black (no light)
         if distance > LIGHT_RADIUS:
             return "#000000"  # Completely black if outside the light radius
         
-        # Reduce the brightness of the light based on the remaining radius
-        brightness_factor = 1 - (shade_factor * 0.5)  # Dimming the brightness as the distance increases
-        
-        # Calculate the new color based on the brightness_factor
         if is_wall:
-            color_value = max(30, int(100 * shade_factor * brightness_factor))  # Walls stay darker but dim as the light radius decreases
+            color_value = max(30, 100 - int(100 * shade_factor))  # Walls stay darker
         else:
-            color_value = max(0, int(255 * shade_factor * brightness_factor))  # Floors get dimmer as the light radius shrinks
-        
-        # Return the color in hex format
+            color_value = max(0, 255 - int(255 * shade_factor))  # Floors get full range of light
         return f"#{color_value:02x}{color_value:02x}{color_value:02x}"
     
     return "#000000"  # Return black if out of bounds (this case should be rare)
