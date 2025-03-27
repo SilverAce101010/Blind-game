@@ -3,21 +3,51 @@ import random
 import math
 
 # Screen settings
-WIDTH, HEIGHT = 800, 600
-grid_size = 20  # Smaller grid size for a more complex maze
-cols, rows = WIDTH // grid_size, HEIGHT // grid_size
+WIDTH, HEIGHT = 800, 600  # Increased screen size for a larger maze
+GRID_SIZE = 20  # Grid size for the maze
+MAZE_COLS, MAZE_ROWS = 100, 75  # Larger maze dimensions
+
+# Create main window
+root = tk.Tk()
+root.title("Maze Game")
+root.geometry(f"{WIDTH + 200}x{HEIGHT}")  # Adjust window size for side panel
+
+# Frame for the maze (Canvas)
+maze_frame = tk.Frame(root)
+maze_frame.pack(side=tk.LEFT)
+
+# Create Canvas for the maze
+canvas = tk.Canvas(maze_frame, width=WIDTH, height=HEIGHT, bg="black")
+canvas.pack()
+
+# Frame for the side panel
+side_panel = tk.Frame(root, width=200, height=HEIGHT, bg="gray")
+side_panel.pack(side=tk.RIGHT, fill=tk.Y)
+
+# Add Text widget to the side panel for displaying text
+text_display = tk.Text(side_panel, width=30, height=30, bg="light gray", fg="black", font=("Helvetica", 12))
+text_display.pack(side=tk.BOTTOM, padx=10, pady=10)  # Pack the text at the bottom of the panel
+
+# Display Text within the widget and ensure it scrolls to the bottom
+def display_text(text):
+    text_display.insert(tk.END, text + '\n')  # Adds new text at the end with a newline
+    text_display.yview_moveto(1.0)  # Scrolls to the bottom to show the latest text
+
+# Example of adding text to display
+display_text("Testing")  # Initially display "Testing"
+
 
 # Player settings
-player_size = grid_size // 1.5
-player_x, player_y = grid_size + player_size // 2, grid_size + player_size // 2
-player_speed = 3
+player_size = int(GRID_SIZE // 1.5)
+player_x, player_y = GRID_SIZE + player_size // 2, GRID_SIZE + player_size // 2
+player_speed = 4
 movement = {"Up": False, "Down": False, "Left": False, "Right": False}
 
-# Maze generation using Depth-First Search with stack-based iterative approach
-maze = [[1 for _ in range(cols)] for _ in range(rows)]
+# Maze generation using Depth-First Search
+maze = [[1 for _ in range(MAZE_COLS)] for _ in range(MAZE_ROWS)]
 
 def generate_maze():
-    """ Improved iterative maze generator using DFS with occasional open rooms """
+    """ Generate a random maze using DFS """
     stack = [(1, 1)]
     visited = set(stack)
     directions = [(0, -2), (0, 2), (-2, 0), (2, 0)]
@@ -30,7 +60,7 @@ def generate_maze():
         
         for dx, dy in directions:
             nx, ny = cx + dx, cy + dy
-            if 0 < nx < cols-1 and 0 < ny < rows-1 and (nx, ny) not in visited:
+            if 0 < nx < MAZE_COLS-1 and 0 < ny < MAZE_ROWS-1 and (nx, ny) not in visited:
                 maze[cy + dy//2][cx + dx//2] = 0
                 stack.append((nx, ny))
                 visited.add((nx, ny))
@@ -39,59 +69,52 @@ def generate_maze():
         
         if not found:
             stack.pop()
-    
-    # Add occasional open rooms
-    for _ in range(random.randint(3, 6)):
-        room_x = random.randint(1, cols-3)
-        room_y = random.randint(1, rows-3)
-        room_width = random.randint(2, 4)
-        room_height = random.randint(2, 4)
-        for ry in range(room_y, min(room_y + room_height, rows-1)):
-            for rx in range(room_x, min(room_x + room_width, cols-1)):
-                maze[ry][rx] = 0
 
 generate_maze()
 
-# Create window
-root = tk.Tk()
-root.title("Maze Game")
-canvas = tk.Canvas(root, width=WIDTH, height=HEIGHT, bg="black")
-canvas.pack()
-
-# Precalculate the wall tiles
-wall_tiles = []
-for y in range(rows):
-    for x in range(cols):
-        if maze[y][x] == 1:
-            wall_tiles.append((x, y))
+# Precalculate wall positions
+wall_tiles = {(x, y) for y in range(MAZE_ROWS) for x in range(MAZE_COLS) if maze[y][x] == 1}
 
 # Define the lighting radius
-LIGHT_RADIUS = 150  # Smaller radius for light to follow the player
+LIGHT_RADIUS = 125
 
-def calculate_shading(x, y):
-    """ Calculate shading based on player distance """
-    distance = math.sqrt((player_x - (x * grid_size))**2 + (player_y - (y * grid_size))**2)
-    shade_factor = min(1, distance / LIGHT_RADIUS)  # Normalize the shading factor to the light radius
-    return f"#{int(255 * (1 - shade_factor)):02x}{int(255 * (1 - shade_factor)):02x}{int(255 * (1 - shade_factor)):02x}"
+def calculate_shading(x, y, is_wall):
+    """ Lighting effect based on player distance, applies to walls and ground differently """
+    if debug_mode:
+        return "#808080" if is_wall else "#eeeeee"  # Walls remain white, floors a bit lighter in debug mode
+    
+    distance = math.sqrt((player_x - (x * GRID_SIZE))**2 + (player_y - (y * GRID_SIZE))**2)
+    shade_factor = min(1, distance / LIGHT_RADIUS)
+    if distance > LIGHT_RADIUS:
+        return "#000000"  # Completely black if outside the light radius
+    if is_wall:
+        color_value = max(30, 100 - int(100 * shade_factor))  # Walls stay darker
+    else:
+        color_value = max(0, 255 - int(255 * shade_factor))  # Floors get full range of light
+    return f"#{color_value:02x}{color_value:02x}{color_value:02x}"
 
-# Draw maze walls with initial shading
-for x, y in wall_tiles:
-    canvas.create_rectangle(
-        x * grid_size, y * grid_size, (x + 1) * grid_size, (y + 1) * grid_size, fill="black", outline="black", tags="maze")
+# Random starting position in an open space
+floor_tiles = [(x, y) for y in range(MAZE_ROWS) for x in range(MAZE_COLS) if maze[y][x] == 0]
+player_x, player_y = random.choice(floor_tiles)
+player_x = int(player_x * GRID_SIZE + player_size // 2)
+player_y = int(player_y * GRID_SIZE + player_size // 2)
 
-# Define the player shape (blue circle)
-player = canvas.create_oval(player_x, player_y, player_x + player_size, player_y + player_size, fill="blue", tags="player")
+# Camera settings
+camera_x, camera_y = 0.0, 0.0  # Camera positions should be floats for smooth movement
+camera_speed = 10.0  # Camera speed (higher = faster follow)
+camera_x_target, camera_y_target = float(player_x), float(player_y)  # Camera target positions
 
-def check_collision(x, y):
-    """ Check if the new position collides with any wall """
-    for x_wall, y_wall in wall_tiles:
-        if (x_wall * grid_size < x + player_size and x < (x_wall + 1) * grid_size and
-                y_wall * grid_size < y + player_size and y < (y_wall + 1) * grid_size):
-            return True
-    return False
+def can_move(new_x, new_y):
+    """Check if the player can move to the new position without colliding with walls"""
+    left = (new_x - player_size // 2) // GRID_SIZE
+    right = (new_x + player_size // 2) // GRID_SIZE
+    top = (new_y - player_size // 2) // GRID_SIZE
+    bottom = (new_y + player_size // 2) // GRID_SIZE
+    return (left, top) not in wall_tiles and (right, top) not in wall_tiles and \
+           (left, bottom) not in wall_tiles and (right, bottom) not in wall_tiles
 
 def update_movement():
-    global player_x, player_y
+    global player_x, player_y, camera_x, camera_y, camera_x_target, camera_y_target
     dx, dy = 0, 0
     if movement["Up"]:
         dy -= player_speed
@@ -103,41 +126,43 @@ def update_movement():
         dx += player_speed
     
     new_x, new_y = player_x + dx, player_y + dy
-    if not check_collision(new_x, player_y):
-        player_x = new_x
-        canvas.move(player, dx, 0)
-    if not check_collision(player_x, new_y):
-        player_y = new_y
-        canvas.move(player, 0, dy)
+    if can_move(new_x, player_y):
+        player_x = int(new_x)
+    if can_move(player_x, new_y):
+        player_y = int(new_y)
+    
+    # Set the camera target to the player's position
+    camera_x_target = float(player_x - WIDTH // 2)  # Ensure float type for target position
+    camera_y_target = float(player_y - HEIGHT // 2)
+    
+    # Update the camera position gradually towards the target (smooth camera movement)
+    camera_x += (camera_x_target - camera_x) / camera_speed
+    camera_y += (camera_y_target - camera_y) / camera_speed
+    
+    redraw()
+    root.after(16, update_movement)
 
-    # Clear all previous lighting and reset canvas to black
-    canvas.delete("light")
-
-    # Update lighting for both walls and the ground (background)
-    for y in range(rows):
-        for x in range(cols):
-            dist = math.sqrt((player_x - (x * grid_size))**2 + (player_y - (y * grid_size))**2)
-            # For the walls (maze)
-            if maze[y][x] == 1:
-                if dist <= LIGHT_RADIUS:
-                    color = "green"  # Walls in light are green
-                else:
-                    color = "black"  # Walls outside the light are black
-                canvas.create_rectangle(x * grid_size, y * grid_size, (x + 1) * grid_size, (y + 1) * grid_size, 
-                                         fill=color, outline=color, tags="light")
-            # For the ground (background)
-            elif dist <= LIGHT_RADIUS:
-                background_color = calculate_shading(x, y)
-                # Set background color with a lighter shade based on proximity to player
-                canvas.create_rectangle(x * grid_size, y * grid_size, (x + 1) * grid_size, (y + 1) * grid_size, 
-                                         fill=background_color, outline=background_color, tags="light")
-
-    # Delete the previous player circle (if it exists) and draw the new one
-    canvas.delete("player")  # Delete the previous player circle
-    # Draw the player again at the new position
-    canvas.create_oval(player_x, player_y, player_x + player_size, player_y + player_size, fill="blue", tags="player")
-
-    root.after(16, update_movement)  # Smooth movement with a frame update every 16ms (~60FPS)
+def redraw():
+    """ Redraw the visible portion of the maze and player """
+    canvas.delete("all")
+    start_x, start_y = max(0, int(camera_x // GRID_SIZE)), max(0, int(camera_y // GRID_SIZE))
+    end_x, end_y = min(MAZE_COLS, int((camera_x + WIDTH) // GRID_SIZE)), min(MAZE_ROWS, int((camera_y + HEIGHT) // GRID_SIZE))
+    
+    # Optimized rendering loop for large mazes
+    for y in range(start_y, end_y + 1):
+        for x in range(start_x, end_x + 1):
+            is_wall = (x, y) in wall_tiles
+            color = calculate_shading(x, y, is_wall)
+            canvas.create_rectangle(
+                x * GRID_SIZE - camera_x, y * GRID_SIZE - camera_y,
+                (x + 1) * GRID_SIZE - camera_x, (y + 1) * GRID_SIZE - camera_y,
+                fill=color, outline=color)
+    
+    # Draw the player
+    canvas.create_oval(
+        player_x - player_size // 2 - camera_x, player_y - player_size // 2 - camera_y,
+        player_x + player_size // 2 - camera_x, player_y + player_size // 2 - camera_y,
+        fill="blue")
 
 def on_key_press(event):
     if event.keysym in ("w", "Up"):
@@ -148,6 +173,9 @@ def on_key_press(event):
         movement["Left"] = True
     elif event.keysym in ("d", "Right"):
         movement["Right"] = True
+    elif event.keysym == "b":  # Toggle debug mode on 'b' key press
+        global debug_mode
+        debug_mode = not debug_mode
 
 def on_key_release(event):
     if event.keysym in ("w", "Up"):
@@ -159,7 +187,10 @@ def on_key_release(event):
     elif event.keysym in ("d", "Right"):
         movement["Right"] = False
 
-# Bind key events
+# Initialize debug_mode flag
+debug_mode = False
+
+# Bind keys
 root.bind("<KeyPress>", on_key_press)
 root.bind("<KeyRelease>", on_key_release)
 
