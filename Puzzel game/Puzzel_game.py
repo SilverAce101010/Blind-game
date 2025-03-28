@@ -89,7 +89,10 @@ wall_tiles = {(x, y) for y in range(MAZE_ROWS) for x in range(MAZE_COLS) if maze
 # Variable for the minimum and maximum light radius
 MIN_LIGHT_RADIUS = 100
 MAX_LIGHT_RADIUS = 150
+LIGHT_RADIUS = MIN_LIGHT_RADIUS  # Initialize LIGHT_RADIUS to the minimum light radius value
 
+
+# You may want to check that the `LIGHT_RADIUS` is being updated properly as the bar decreases
 def update_light_radius():
     """Update the light radius based on the current width of the sanity bar."""
     global LIGHT_RADIUS
@@ -99,7 +102,6 @@ def update_light_radius():
     
     # Map the bar width percentage to the light radius range (from 100 to 125)
     LIGHT_RADIUS = MIN_LIGHT_RADIUS + (MAX_LIGHT_RADIUS - MIN_LIGHT_RADIUS) * bar_percentage
-
 
 def calculate_shading(x, y, is_wall, target_x=None, target_y=None):
     """ Lighting effect based on player distance, applies to walls and ground differently. """
@@ -134,7 +136,7 @@ player_y = int(player_y * GRID_SIZE + player_size // 2)
 
 # Camera settings
 camera_x, camera_y = 0.0, 0.0  # Camera positions should be floats for smooth movement
-camera_speed = 9.5  # Camera speed (higher = faster follow)
+camera_speed = 9  # Camera speed (higher = faster follow)
 camera_x_target, camera_y_target = float(player_x), float(player_y)  # Camera target positions
 
 # Variable for the decreasing bar width
@@ -275,11 +277,27 @@ def reconstruct_path(came_from, current):
     path.reverse()
     return path
 
+# Update the `move_enemy_towards_player` function with speed adjustments
 def move_enemy_towards_player():
     """ Move the enemy towards the player's position using A* pathfinding or fallback behavior. """
     global enemy_x, enemy_y  # Use global enemy positions for modification
     global player_x, player_y  # Use global player positions for reference
     
+    # Calculate the distance from the enemy to the player
+    distance_to_player = math.sqrt((player_x - enemy_x)**2 + (player_y - enemy_y)**2)
+    
+    # Calculate the chase radius, which is slightly larger than the light radius
+    chase_radius = LIGHT_RADIUS * 1.2  # 20% larger than the light radius
+    
+    # Adjust the enemy's speed based on its distance to the player
+    if distance_to_player > chase_radius:
+        # Enemy is far from the player, make it move faster
+        current_enemy_speed = enemy_speed * 1.5  # Enemy moves 2x faster outside of the chase radius
+    else:
+        # Enemy is near the player, make it move slower
+        current_enemy_speed = enemy_speed * 0.5  # Enemy moves 0.8x slower inside the chase radius
+    
+    # Proceed with A* pathfinding as normal, using the adjusted speed
     start = (enemy_x // GRID_SIZE, enemy_y // GRID_SIZE)
     goal = (player_x // GRID_SIZE, player_y // GRID_SIZE)
     
@@ -302,9 +320,11 @@ def move_enemy_towards_player():
             dx /= distance  # Normalize to move in the correct direction
             dy /= distance
         
-        new_enemy_x = enemy_x + dx * enemy_speed
-        new_enemy_y = enemy_y + dy * enemy_speed
+        # Adjust the movement speed of the enemy
+        new_enemy_x = enemy_x + dx * current_enemy_speed
+        new_enemy_y = enemy_y + dy * current_enemy_speed
         
+        # Check if the enemy can move to the new position and update its position
         if can_move(new_enemy_x, enemy_y, is_player=False):
             enemy_x = int(new_enemy_x)
         if can_move(enemy_x, new_enemy_y, is_player=False):
