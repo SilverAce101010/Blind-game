@@ -207,9 +207,20 @@ player_x, player_y = random_spawn()
 player_x = int(player_x * GRID_SIZE + player_size // 2)
 player_y = int(player_y * GRID_SIZE + player_size // 2)
 
-enemy_x, enemy_y = random_spawn()
-enemy_x = int(enemy_x * GRID_SIZE + enemy_size // 2)
-enemy_y = int(enemy_y * GRID_SIZE + enemy_size // 2)
+# Create a list to hold the positions of multiple enemies
+enemies = []
+
+def spawn_enemies(num_enemies=5):
+    """Spawn multiple enemies at random non-wall tiles."""
+    global enemies
+    enemies.clear()  # Clear any existing enemies
+    for _ in range(num_enemies):
+        enemy_x, enemy_y = random_spawn()  # Random spawn for each enemy
+        enemy_x = int(enemy_x * GRID_SIZE + enemy_size // 2)
+        enemy_y = int(enemy_y * GRID_SIZE + enemy_size // 2)
+        enemies.append({'x': enemy_x, 'y': enemy_y})  # Store enemy's position in a dict
+
+spawn_enemies(5)  # Spawn 5 enemies in different locations
 
 # Directions for A* (up, down, left, right, diagonals)
 directions = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
@@ -277,73 +288,67 @@ def reconstruct_path(came_from, current):
     path.reverse()
     return path
 
-# Update the `move_enemy_towards_player` function with speed adjustments
-def move_enemy_towards_player():
-    """ Move the enemy towards the player's position using A* pathfinding or fallback behavior. """
-    global enemy_x, enemy_y  # Use global enemy positions for modification
-    global player_x, player_y  # Use global player positions for reference
-    
-    # Calculate the distance from the enemy to the player
-    distance_to_player = math.sqrt((player_x - enemy_x)**2 + (player_y - enemy_y)**2)
-    
-    # Calculate the chase radius, which is slightly larger than the light radius
-    chase_radius = LIGHT_RADIUS * 1.2  # 20% larger than the light radius
-    
-    # Adjust the enemy's speed based on its distance to the player
-    if distance_to_player > chase_radius:
-        # Enemy is far from the player, make it move faster
-        current_enemy_speed = enemy_speed * 1.5  # Enemy moves 2x faster outside of the chase radius
-    else:
-        # Enemy is near the player, make it move slower
-        current_enemy_speed = enemy_speed * 0.5  # Enemy moves 0.8x slower inside the chase radius
-    
-    # Proceed with A* pathfinding as normal, using the adjusted speed
-    start = (enemy_x // GRID_SIZE, enemy_y // GRID_SIZE)
-    goal = (player_x // GRID_SIZE, player_y // GRID_SIZE)
-    
-    # Get the path to the player
-    enemy_path = a_star(start, goal)
-    
-    if not enemy_path:  # If no path is found, start fallback behavior
-        random_wander()
-    else:
-        next_position = enemy_path.pop(0)
-        target_x, target_y = next_position
-        target_x = target_x * GRID_SIZE + GRID_SIZE // 2
-        target_y = target_y * GRID_SIZE + GRID_SIZE // 2
+# Modify move_enemy_towards_player to handle multiple enemies
+def move_enemies_towards_player():
+    """Move each enemy towards the player's position using A* pathfinding or fallback behavior."""
+    for enemy in enemies:
+        enemy_x, enemy_y = enemy['x'], enemy['y']
         
-        dx = target_x - enemy_x
-        dy = target_y - enemy_y
-        distance = math.sqrt(dx**2 + dy**2)
+        # Calculate the distance from the enemy to the player
+        distance_to_player = math.sqrt((player_x - enemy_x)**2 + (player_y - enemy_y)**2)
         
-        if distance != 0:
-            dx /= distance  # Normalize to move in the correct direction
-            dy /= distance
+        # Calculate the chase radius, which is slightly larger than the light radius
+        chase_radius = LIGHT_RADIUS * 1.2  # 20% larger than the light radius
         
-        # Adjust the movement speed of the enemy
-        new_enemy_x = enemy_x + dx * current_enemy_speed
-        new_enemy_y = enemy_y + dy * current_enemy_speed
+        # Adjust the enemy's speed based on its distance to the player
+        if distance_to_player > chase_radius:
+            current_enemy_speed = enemy_speed * 1.5  # Enemy moves faster outside of chase radius
+        else:
+            current_enemy_speed = enemy_speed * 0.5  # Enemy moves slower inside chase radius
         
-        # Check if the enemy can move to the new position and update its position
-        if can_move(new_enemy_x, enemy_y, is_player=False):
-            enemy_x = int(new_enemy_x)
-        if can_move(enemy_x, new_enemy_y, is_player=False):
-            enemy_y = int(new_enemy_y)
+        # Proceed with A* pathfinding as normal
+        start = (enemy_x // GRID_SIZE, enemy_y // GRID_SIZE)
+        goal = (player_x // GRID_SIZE, player_y // GRID_SIZE)
+        
+        enemy_path = a_star(start, goal)
+        
+        if not enemy_path:  # If no path is found, start fallback behavior
+            random_wander(enemy)
+        else:
+            next_position = enemy_path.pop(0)
+            target_x, target_y = next_position
+            target_x = target_x * GRID_SIZE + GRID_SIZE // 2
+            target_y = target_y * GRID_SIZE + GRID_SIZE // 2
+            
+            dx = target_x - enemy_x
+            dy = target_y - enemy_y
+            distance = math.sqrt(dx**2 + dy**2)
+            
+            if distance != 0:
+                dx /= distance  # Normalize to move in the correct direction
+                dy /= distance
+            
+            # Adjust the movement speed of the enemy
+            new_enemy_x = enemy_x + dx * current_enemy_speed
+            new_enemy_y = enemy_y + dy * current_enemy_speed
+            
+            if can_move(new_enemy_x, enemy_y, is_player=False):
+                enemy['x'] = int(new_enemy_x)
+            if can_move(enemy_x, new_enemy_y, is_player=False):
+                enemy['y'] = int(new_enemy_y)
 
-def random_wander():
+def random_wander(enemy):
     """ Random wandering behavior for the enemy when stuck. """
-    global enemy_x, enemy_y  # Use global enemy positions for modification
-    
     direction = random.choice(directions)
     
     dx, dy = direction
-    new_enemy_x = enemy_x + dx * enemy_speed
-    new_enemy_y = enemy_y + dy * enemy_speed
+    new_enemy_x = enemy['x'] + dx * enemy_speed
+    new_enemy_y = enemy['y'] + dy * enemy_speed
     
-    if can_move(new_enemy_x, enemy_y, is_player=False):
-        enemy_x = int(new_enemy_x)
-    if can_move(enemy_x, new_enemy_y, is_player=False):
-        enemy_y = int(new_enemy_y)
+    if can_move(new_enemy_x, enemy['y'], is_player=False):
+        enemy['x'] = int(new_enemy_x)
+    if can_move(enemy['x'], new_enemy_y, is_player=False):
+        enemy['y'] = int(new_enemy_y)
 
 # Modify the can_move function to allow ghost mode functionality
 def can_move(new_x, new_y, is_player=True):
@@ -359,9 +364,9 @@ def can_move(new_x, new_y, is_player=True):
     return False
 
 # Example usage: Calling move_enemy_towards_player will move the enemy towards the player
-move_enemy_towards_player()  # The enemy moves towards the player using A* or fallback behavior
+move_enemies_towards_player()  # The enemy moves towards the player using A* or fallback behavior
 
-# Update the movement function to include the enemy's behavior
+# Update movement function to move multiple enemies
 def update_movement():
     global player_x, player_y, camera_x, camera_y, camera_x_target, camera_y_target
     dx, dy = 0, 0
@@ -388,15 +393,15 @@ def update_movement():
     camera_x += (camera_x_target - camera_x) / camera_speed
     camera_y += (camera_y_target - camera_y) / camera_speed
     
-    # Move the enemy towards the player
-    move_enemy_towards_player()
+    # Move each enemy towards the player
+    move_enemies_towards_player()
     
     redraw()
     root.after(16, update_movement)
 
-# Redraw function for the game
+# Update the redraw function to handle multiple enemies
 def redraw():
-    """Redraw the visible portion of the maze, player, and enemy."""
+    """Redraw the visible portion of the maze, player, and all enemies."""
     canvas.delete("all")
     
     # Make sure the camera's x and y positions do not go out of bounds
@@ -409,7 +414,6 @@ def redraw():
     # Optimized rendering loop for large mazes
     for y in range(start_y, end_y + 1):
         for x in range(start_x, end_x + 1):
-            # Ensure x and y are within bounds before calling calculate_shading
             if 0 <= x < MAZE_COLS and 0 <= y < MAZE_ROWS:
                 shading = calculate_shading(x, y, is_wall=(maze[y][x] == 1))
                 canvas.create_rectangle(x * GRID_SIZE - camera_x, y * GRID_SIZE - camera_y, 
@@ -421,28 +425,29 @@ def redraw():
                        player_x + player_size // 2 - camera_x, player_y + player_size // 2 - camera_y,
                        fill="blue")
 
-    # Calculate the distance from the player to the enemy
-    distance_to_enemy = math.sqrt((player_x - enemy_x)**2 + (player_y - enemy_y)**2)
-    
-    # Calculate the red component based on the distance
-    max_distance = LIGHT_RADIUS  # Maximum distance for full red intensity
-    red_intensity = max(0, min(255, int(255 * (1 - (distance_to_enemy / max_distance)))) )  # Inverse distance
+    # Draw each enemy
+    for enemy in enemies:
+        enemy_x, enemy_y = enemy['x'], enemy['y']
+        
+        # Calculate the distance from the player to the enemy
+        distance_to_enemy = math.sqrt((player_x - enemy_x)**2 + (player_y - enemy_y)**2)
+        
+        # Calculate the red component based on the distance
+        max_distance = LIGHT_RADIUS  # Maximum distance for full red intensity
+        red_intensity = max(0, min(255, int(255 * (1 - (distance_to_enemy / max_distance)))) )  # Inverse distance
 
-    # In debug mode, always show the enemy, with a fixed red color
-    if debug_mode:
-        # Consistent red color in debug mode (no distance effect)
-        enemy_color = "#FF0000"  # Fixed bright red color for the enemy
-    elif distance_to_enemy <= LIGHT_RADIUS - 5:
-        # If the enemy is within the lighting radius, show it
-        enemy_color = f"#{red_intensity:02x}00{0:02x}"  # RGB color: (red_intensity, 0, 0)
-    else:
-        # If the enemy is outside of the lighting radius, it will be invisible
-        enemy_color = "#000000"  # Fully black (invisible)
+        # In debug mode, always show the enemy, with a fixed red color
+        if debug_mode:
+            enemy_color = "#FF0000"  # Fixed bright red color for the enemy
+        elif distance_to_enemy <= LIGHT_RADIUS - 5:
+            enemy_color = f"#{red_intensity:02x}00{0:02x}"  # RGB color: (red_intensity, 0, 0)
+        else:
+            enemy_color = "#000000"  # Fully black (invisible)
 
-    # Draw the enemy with the calculated color
-    canvas.create_oval(enemy_x - enemy_size // 2 - camera_x, enemy_y - enemy_size // 2 - camera_y,
-                       enemy_x + enemy_size // 2 - camera_x, enemy_y + enemy_size // 2 - camera_y,
-                       fill=enemy_color)
+        # Draw the enemy with the calculated color
+        canvas.create_oval(enemy_x - enemy_size // 2 - camera_x, enemy_y - enemy_size // 2 - camera_y,
+                           enemy_x + enemy_size // 2 - camera_x, enemy_y + enemy_size // 2 - camera_y,
+                           fill=enemy_color)
 
 # Keyboard controls
 def on_key_press(event):
