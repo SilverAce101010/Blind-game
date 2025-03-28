@@ -467,6 +467,14 @@ def on_key_press(event):
         movement["Left"] = True
     elif key == "Right":
         movement["Right"] = True
+    elif key == "w":
+        movement["Up"] = True
+    elif key == "s":
+        movement["Down"] = True
+    elif key == "a":
+        movement["Left"] = True
+    elif key == "d":
+        movement["Right"] = True
     elif key == "b":
         debug_mode = not debug_mode  # Toggle debug mode on 'b' key press
         display_text(f"Debug Mode: {'On' if debug_mode else 'Off'}")
@@ -483,6 +491,14 @@ def on_key_release(event):
     elif key == "Left":
         movement["Left"] = False
     elif key == "Right":
+        movement["Right"] = False
+    elif key == "w":
+        movement["Up"] = False
+    elif key == "s":
+        movement["Down"] = False
+    elif key == "a":
+        movement["Left"] = False
+    elif key == "d":
         movement["Right"] = False
 
 # Bind the keys to the controls
