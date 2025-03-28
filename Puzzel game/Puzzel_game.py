@@ -210,7 +210,7 @@ player_y = int(player_y * GRID_SIZE + player_size // 2)
 # Create a list to hold the positions of multiple enemies
 enemies = []
 
-def spawn_enemies(num_enemies=5):
+def spawn_enemies(num_enemies=3):
     """Spawn multiple enemies at random non-wall tiles."""
     global enemies
     enemies.clear()  # Clear any existing enemies
@@ -220,7 +220,7 @@ def spawn_enemies(num_enemies=5):
         enemy_y = int(enemy_y * GRID_SIZE + enemy_size // 2)
         enemies.append({'x': enemy_x, 'y': enemy_y})  # Store enemy's position in a dict
 
-spawn_enemies(5)  # Spawn 5 enemies in different locations
+spawn_enemies(3)  # Spawn 5 enemies in different locations
 
 # Directions for A* (up, down, left, right, diagonals)
 directions = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
