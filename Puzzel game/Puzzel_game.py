@@ -415,10 +415,16 @@ def redraw():
     for y in range(start_y, end_y + 1):
         for x in range(start_x, end_x + 1):
             if 0 <= x < MAZE_COLS and 0 <= y < MAZE_ROWS:
-                shading = calculate_shading(x, y, is_wall=(maze[y][x] == 1))
-                canvas.create_rectangle(x * GRID_SIZE - camera_x, y * GRID_SIZE - camera_y, 
-                                        (x + 1) * GRID_SIZE - camera_x, (y + 1) * GRID_SIZE - camera_y,
-                                        fill=shading, outline="")
+                if debug_mode:
+                    shading = calculate_shading(x, y, is_wall=(maze[y][x] == 1))
+                    canvas.create_rectangle(x * GRID_SIZE - camera_x, y * GRID_SIZE - camera_y, 
+                                            (x + 1) * GRID_SIZE - camera_x, (y + 1) * GRID_SIZE - camera_y,
+                                            fill=shading, outline="black")
+                else:
+                    canvas.create_rectangle(x * GRID_SIZE - camera_x, y * GRID_SIZE - camera_y, 
+                                            (x + 1) * GRID_SIZE - camera_x, (y + 1) * GRID_SIZE - camera_y,
+                                            fill=calculate_shading(x, y, is_wall=(maze[y][x] == 1)),
+                                            outline="")
 
     # Draw the player
     canvas.create_oval(player_x - player_size // 2 - camera_x, player_y - player_size // 2 - camera_y,
