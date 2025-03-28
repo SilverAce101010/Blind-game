@@ -6,7 +6,11 @@ import heapq
 # Screen settings
 WIDTH, HEIGHT = 800, 600  # Increased screen size for a larger maze
 GRID_SIZE = 20  # Grid size for the maze
-MAZE_COLS, MAZE_ROWS = 100, 75  # Larger maze dimensions
+MAZE_COLS, MAZE_ROWS = 100, 100  # Larger maze dimensions
+
+# Initialize game settings
+ghost_mode = False
+debug_mode = False
 
 # Create main window
 root = tk.Tk()
@@ -46,6 +50,10 @@ player_x, player_y = GRID_SIZE + player_size // 2, GRID_SIZE + player_size // 2
 player_speed = 4
 movement = {"Up": False, "Down": False, "Left": False, "Right": False}
 
+# Global variables for enemy and player positions
+enemy_speed = 5  # Enemy speed for movement
+enemy_size = player_size # Enemy size
+
 # Maze generation using Depth-First Search
 maze = [[1 for _ in range(MAZE_COLS)] for _ in range(MAZE_ROWS)]
 
@@ -80,7 +88,7 @@ wall_tiles = {(x, y) for y in range(MAZE_ROWS) for x in range(MAZE_COLS) if maze
 
 # Variable for the minimum and maximum light radius
 MIN_LIGHT_RADIUS = 100
-MAX_LIGHT_RADIUS = 125
+MAX_LIGHT_RADIUS = 150
 
 def update_light_radius():
     """Update the light radius based on the current width of the sanity bar."""
@@ -186,27 +194,80 @@ def a_star(start, goal):
     
     return []  # No path found
 
-def heuristic(a, b):
-    """ Diagonal distance heuristic (Chebyshev distance) """
-    return max(abs(a[0] - b[0]), abs(a[1] - b[1]))
+# Random starting position for player in an open space
+def random_spawn():
+    """ Function to spawn at a random non-wall tile. """
+    floor_tiles = [(x, y) for y in range(MAZE_ROWS) for x in range(MAZE_COLS) if maze[y][x] == 0]  # Only walkable tiles
+    return random.choice(floor_tiles)  # Random non-wall tile
+
+# Set player and enemy starting positions
+player_x, player_y = random_spawn()
+player_x = int(player_x * GRID_SIZE + player_size // 2)
+player_y = int(player_y * GRID_SIZE + player_size // 2)
+
+enemy_x, enemy_y = random_spawn()
+enemy_x = int(enemy_x * GRID_SIZE + enemy_size // 2)
+enemy_y = int(enemy_y * GRID_SIZE + enemy_size // 2)
+
+# Directions for A* (up, down, left, right, diagonals)
+directions = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
+
+def heuristic(start, goal):
+    """ Calculate the Manhattan distance (or Euclidean) between two points. """
+    x1, y1 = start
+    x2, y2 = goal
+    return abs(x1 - x2) + abs(y1 - y2)  # Manhattan distance for grid-based movement
 
 def get_neighbors(pos):
-    """ Get valid neighboring positions (up, down, left, right, and diagonals) """
+    """ Get valid neighboring positions (up, down, left, right, and diagonals). """
     x, y = pos
     neighbors = []
     
-    # 8 possible directions (up, down, left, right, and diagonals)
-    directions = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
-    
     for dx, dy in directions:
         nx, ny = x + dx, y + dy
-        if 0 <= nx < MAZE_COLS and 0 <= ny < MAZE_ROWS and maze[ny][nx] == 0:  # Check if the tile is walkable (not a wall)
+        if 0 <= nx < MAZE_COLS and 0 <= ny < MAZE_ROWS and maze[ny][nx] == 0:  # Walkable tile
             neighbors.append((nx, ny))
     
     return neighbors
 
+def a_star(start, goal):
+    """ A* pathfinding algorithm to find the shortest path from start to goal. """
+    open_list = []
+    closed_list = set()
+    came_from = {}
+    
+    start_node = (0, start)
+    heapq.heappush(open_list, start_node)
+    
+    g_costs = {start: 0}
+    f_costs = {start: heuristic(start, goal)}
+    
+    while open_list:
+        _, current = heapq.heappop(open_list)
+        
+        if current == goal:
+            return reconstruct_path(came_from, current)
+        
+        closed_list.add(current)
+        
+        for neighbor in get_neighbors(current):
+            if neighbor in closed_list:
+                continue
+            
+            tentative_g_cost = g_costs[current] + 1  # Moving to a neighbor costs 1
+            
+            if neighbor not in g_costs or tentative_g_cost < g_costs[neighbor]:
+                came_from[neighbor] = current
+                g_costs[neighbor] = tentative_g_cost
+                f_costs[neighbor] = g_costs[neighbor] + heuristic(neighbor, goal)
+                
+                if neighbor not in open_list:
+                    heapq.heappush(open_list, (f_costs[neighbor], neighbor))
+    
+    return []  # No path found
+
 def reconstruct_path(came_from, current):
-    """ Reconstruct the path from the came_from dictionary """
+    """ Reconstruct the path from start to goal by tracing back. """
     path = []
     while current in came_from:
         path.append(current)
@@ -214,32 +275,25 @@ def reconstruct_path(came_from, current):
     path.reverse()
     return path
 
-# Enemy setup
-enemy_size = int(GRID_SIZE // 1.5)
-enemy_x, enemy_y = random.choice(floor_tiles)
-enemy_x = int(enemy_x * GRID_SIZE + enemy_size // 2)
-enemy_y = int(enemy_y * GRID_SIZE + enemy_size // 2)
-enemy_speed = 5  # Speed of the enemy
-enemy_path = []  # Path for the enemy to follow
-
 def move_enemy_towards_player():
-    """ Move the enemy towards the player's position using A* pathfinding """
-    global enemy_x, enemy_y, enemy_path
+    """ Move the enemy towards the player's position using A* pathfinding or fallback behavior. """
+    global enemy_x, enemy_y  # Use global enemy positions for modification
+    global player_x, player_y  # Use global player positions for reference
     
-    # If the path is empty, calculate a new path to the player
-    if not enemy_path:
-        start = (enemy_x // GRID_SIZE, enemy_y // GRID_SIZE)
-        goal = (player_x // GRID_SIZE, player_y // GRID_SIZE)
-        enemy_path = a_star(start, goal)
+    start = (enemy_x // GRID_SIZE, enemy_y // GRID_SIZE)
+    goal = (player_x // GRID_SIZE, player_y // GRID_SIZE)
     
-    # If there's a path, move the enemy along it
-    if enemy_path:
-        next_position = enemy_path.pop(0)  # Get the next position in the path
+    # Get the path to the player
+    enemy_path = a_star(start, goal)
+    
+    if not enemy_path:  # If no path is found, start fallback behavior
+        random_wander()
+    else:
+        next_position = enemy_path.pop(0)
         target_x, target_y = next_position
         target_x = target_x * GRID_SIZE + GRID_SIZE // 2
         target_y = target_y * GRID_SIZE + GRID_SIZE // 2
         
-        # Move towards the target position with smooth interpolation
         dx = target_x - enemy_x
         dy = target_y - enemy_y
         distance = math.sqrt(dx**2 + dy**2)
@@ -248,29 +302,44 @@ def move_enemy_towards_player():
             dx /= distance  # Normalize to move in the correct direction
             dy /= distance
         
-        # Gradually move the enemy towards the target, avoiding grid snapping
         new_enemy_x = enemy_x + dx * enemy_speed
         new_enemy_y = enemy_y + dy * enemy_speed
         
-        # Ensure the enemy checks for wall collisions and does not pass through walls
         if can_move(new_enemy_x, enemy_y, is_player=False):
             enemy_x = int(new_enemy_x)
         if can_move(enemy_x, new_enemy_y, is_player=False):
             enemy_y = int(new_enemy_y)
 
+def random_wander():
+    """ Random wandering behavior for the enemy when stuck. """
+    global enemy_x, enemy_y  # Use global enemy positions for modification
+    
+    direction = random.choice(directions)
+    
+    dx, dy = direction
+    new_enemy_x = enemy_x + dx * enemy_speed
+    new_enemy_y = enemy_y + dy * enemy_speed
+    
+    if can_move(new_enemy_x, enemy_y, is_player=False):
+        enemy_x = int(new_enemy_x)
+    if can_move(enemy_x, new_enemy_y, is_player=False):
+        enemy_y = int(new_enemy_y)
+
+# Modify the can_move function to allow ghost mode functionality
 def can_move(new_x, new_y, is_player=True):
-    """ Check if the player or the enemy can move to the new position without colliding with walls """
-    if is_player and ghost_mode:
-        return True  # In ghost mode, the player can pass through walls.
+    """ Check if the enemy or player can move to the new position. """
+    if ghost_mode and is_player:  # If ghost mode is enabled, allow the player to walk through walls
+        return True
     
-    left = (new_x - player_size // 2) // GRID_SIZE
-    right = (new_x + player_size // 2) // GRID_SIZE
-    top = (new_y - player_size // 2) // GRID_SIZE
-    bottom = (new_y + player_size // 2) // GRID_SIZE
+    grid_x = int(new_x) // GRID_SIZE  # Ensure grid_x is an integer
+    grid_y = int(new_y) // GRID_SIZE  # Ensure grid_y is an integer
     
-    # Check for collisions with walls in all four corners
-    return (left, top) not in wall_tiles and (right, top) not in wall_tiles and \
-           (left, bottom) not in wall_tiles and (right, bottom) not in wall_tiles
+    if 0 <= grid_x < MAZE_COLS and 0 <= grid_y < MAZE_ROWS:
+        return maze[grid_y][grid_x] == 0  # Check if it's a walkable tile for the player
+    return False
+
+# Example usage: Calling move_enemy_towards_player will move the enemy towards the player
+move_enemy_towards_player()  # The enemy moves towards the player using A* or fallback behavior
 
 # Update the movement function to include the enemy's behavior
 def update_movement():
@@ -354,10 +423,6 @@ def redraw():
     canvas.create_oval(enemy_x - enemy_size // 2 - camera_x, enemy_y - enemy_size // 2 - camera_y,
                        enemy_x + enemy_size // 2 - camera_x, enemy_y + enemy_size // 2 - camera_y,
                        fill=enemy_color)
-
-# Initialize game settings
-ghost_mode = False
-debug_mode = False
 
 # Keyboard controls
 def on_key_press(event):
