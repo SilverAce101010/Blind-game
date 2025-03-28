@@ -243,42 +243,6 @@ def get_neighbors(pos):
     
     return neighbors
 
-def a_star(start, goal):
-    """ A* pathfinding algorithm to find the shortest path from start to goal. """
-    open_list = []
-    closed_list = set()
-    came_from = {}
-    
-    start_node = (0, start)
-    heapq.heappush(open_list, start_node)
-    
-    g_costs = {start: 0}
-    f_costs = {start: heuristic(start, goal)}
-    
-    while open_list:
-        _, current = heapq.heappop(open_list)
-        
-        if current == goal:
-            return reconstruct_path(came_from, current)
-        
-        closed_list.add(current)
-        
-        for neighbor in get_neighbors(current):
-            if neighbor in closed_list:
-                continue
-            
-            tentative_g_cost = g_costs[current] + 1  # Moving to a neighbor costs 1
-            
-            if neighbor not in g_costs or tentative_g_cost < g_costs[neighbor]:
-                came_from[neighbor] = current
-                g_costs[neighbor] = tentative_g_cost
-                f_costs[neighbor] = g_costs[neighbor] + heuristic(neighbor, goal)
-                
-                if neighbor not in open_list:
-                    heapq.heappush(open_list, (f_costs[neighbor], neighbor))
-    
-    return []  # No path found
-
 def reconstruct_path(came_from, current):
     """ Reconstruct the path from start to goal by tracing back. """
     path = []
@@ -513,4 +477,3 @@ update_movement()
 
 # Start the Tkinter event loop
 root.mainloop()
-# Hello
